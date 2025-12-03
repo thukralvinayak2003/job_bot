@@ -16,7 +16,7 @@ import time
 
 # Simple mapping of scrapers and apply handlers
 SCRAPERS = [
-    ("LinkedIn", linkedin.search_jobs, apply_linkedin),
+    # ("LinkedIn", linkedin.search_jobs, apply_linkedin),
     ("Indeed", indeed.search_jobs, apply_indeed),
 ]
 

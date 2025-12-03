@@ -1,8 +1,71 @@
-
 from playwright.sync_api import Page
 from typing import List, Dict
 import time
 import urllib.parse
+
+def wait_for_cloudflare_if_needed(page: Page, timeout: int = 60) -> bool:
+    """
+    Check if Cloudflare verification is present and wait for user to solve it.
+    Returns True if verification was needed and completed, False otherwise.
+    """
+    try:
+        # Check if job results are already visible (we're past Cloudflare)
+        job_selectors = [
+            "div.job_seen_beacon",
+            "td.resultContent",
+            "div.cardOutline",
+            "a.jcs-JobTitle",
+            "div[data-jk]",
+        ]
+        
+        for selector in job_selectors:
+            if page.query_selector(selector):
+                # Job content is visible, no Cloudflare blocking
+                return False
+        
+        # Check for Cloudflare challenge indicators
+        content = page.content().lower()
+        
+        # Specific Cloudflare BLOCKING indicators (not just the word "cloudflare")
+        cloudflare_blocking = [
+            "just a moment",
+            "checking your browser",
+            "verify you are human",
+            "challenge-platform",
+            "cf-browser-verification"
+        ]
+        
+        is_blocked = any(indicator in content for indicator in cloudflare_blocking)
+        
+        if is_blocked:
+            print("\n⚠️  Cloudflare verification detected!")
+            print("Please complete the verification in the browser window...")
+            print("Waiting for you to solve it (checking every 3 seconds)...")
+            
+            # Wait for Cloudflare to clear
+            max_checks = timeout // 3
+            for i in range(max_checks):
+                time.sleep(3)
+                
+                # Check if job content is now visible (verification passed)
+                for selector in job_selectors:
+                    if page.query_selector(selector):
+                        print("✓ Cloudflare verification passed! Job results visible.")
+                        time.sleep(2)  # Extra wait for page to stabilize
+                        return True
+                
+                if i % 5 == 0 and i > 0:  # Every 15 seconds
+                    print(f"Still waiting... ({i*3}s elapsed)")
+            
+            print("✗ Cloudflare verification timeout. Continuing anyway...")
+            return False
+        
+        return False
+        
+    except Exception as e:
+        print(f"Error checking for Cloudflare: {e}")
+        return False
+
 
 def search_jobs(page: Page, role: str, location: str, max_results: int = 10) -> List[Dict]:
     jobs = []
@@ -23,6 +86,10 @@ def search_jobs(page: Page, role: str, location: str, max_results: int = 10) -> 
         page.goto(url, wait_until="domcontentloaded", timeout=30000)
         time.sleep(4)
         
+        # Check for Cloudflare ONCE at the beginning
+        wait_for_cloudflare_if_needed(page, timeout=60)
+        
+        # Now proceed with normal scraping
         # Scroll to load more content
         for _ in range(3):
             page.evaluate("window.scrollBy(0, 1000)")
@@ -53,14 +120,14 @@ def search_jobs(page: Page, role: str, location: str, max_results: int = 10) -> 
                 f.write(page.content())
             print("Saved indeed_debug.png and indeed_debug.html")
             
-            # Check if we hit a CAPTCHA
+            # Check if we hit a CAPTCHA/Cloudflare again
             captcha_text = page.content().lower()
-            if "captcha" in captcha_text or "robot" in captcha_text:
-                print("⚠️  CAPTCHA detected! Indeed is blocking automated access.")
+            if any(term in captcha_text for term in ["captcha", "robot", "cloudflare", "verify you are human"]):
+                print("⚠️  Still blocked by Cloudflare/CAPTCHA!")
                 print("Solutions:")
-                print("  1. Run with --no-headless and solve CAPTCHA manually")
+                print("  1. The verification may need to be solved again")
                 print("  2. Use a different IP/VPN")
-                print("  3. Add delays between requests")
+                print("  3. Try again in a few minutes")
             
             return jobs
         
@@ -145,4 +212,3 @@ def search_jobs(page: Page, role: str, location: str, max_results: int = 10) -> 
         print(f"Error during Indeed search: {e}")
     
     return jobs
-
