@@ -1,15 +1,5 @@
-# apply/__init__.py
-"""
-Apply handlers package.
+from .linkedin_apply import LinkedInApply
+from .utils.job_filtering import get_new_jobs_only
 
-Provides automated job application handlers for each platform.
-"""
-
-from .apply_linkedin import attempt_apply as apply_linkedin
-from .apply_indeed import attempt_apply as apply_indeed
-
-
-__all__ = [
-    "apply_linkedin",
-    "apply_indeed",
-]
+# Export main classes and functions
+__all__ = ['LinkedInApply', 'get_new_jobs_only']
