@@ -4,7 +4,7 @@ Enhanced Indeed auto-apply with robust form handling and error recovery.
 """
 
 from playwright.sync_api import Page, TimeoutError as PlaywrightTimeout
-from apply.apply_common import fill_contact_fields, fill_standard_form_fields
+from apply.base_apply import fill_contact_fields, fill_standard_form_fields
 from database import db
 import time
 import random

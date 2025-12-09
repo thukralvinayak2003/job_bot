@@ -13,10 +13,11 @@ from database import db
 import os
 from tqdm import tqdm
 import time
+import random
 
 # Simple mapping of scrapers and apply handlers
 SCRAPERS = [
-    # ("LinkedIn", linkedin.search_jobs, apply_linkedin),
+    ("LinkedIn", linkedin.search_jobs, apply_linkedin),
     ("Indeed", indeed.search_jobs, apply_indeed),
 ]
 
@@ -152,7 +153,7 @@ def run_apply(max_per_site=5, headless=None):
 
             print(f"Found {len(jobs)} jobs on {name}")
             
-            for job in jobs:
+            for idx, job in enumerate(jobs):
                 link = job.get("link")
                 if not link:
                     continue
@@ -160,7 +161,7 @@ def run_apply(max_per_site=5, headless=None):
                     print(f"Skipping (already applied): {job.get('role')} @ {job.get('company')}")
                     continue
                     
-                print(f"Processing: {job.get('role')} @ {job.get('company')} — {link}")
+                print(f"Processing [{idx+1}/{len(jobs)}]: {job.get('role')} @ {job.get('company')} — {link}")
                 
                 if apply_fn is None:
                     print(f"Auto-apply not implemented for {name}, skipping. (open link manually)")
@@ -179,8 +180,9 @@ def run_apply(max_per_site=5, headless=None):
                     print(f"Error applying: {e}")
                     db.add_job(link, job.get("company"), job.get("role"), status="error")
                     
-                # small delay to avoid rapid-fire
-                time.sleep(2)
+                # After applying, wait before next application to avoid search keyword changes
+                print(f"Waiting before next application...")
+                time.sleep(random.uniform(3, 5))
                 
         browser.close()
         

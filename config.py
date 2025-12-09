@@ -28,4 +28,10 @@ class Config:
     # playwight headless default, can be changed when launching browser
     HEADLESS = os.getenv("HEADLESS", "true").lower() in ("1", "true", "yes")
     ANSWERS = COMMON_ANSWERS
+    YEARS_EXPERIENCE = os.getenv("YEARS_EXPERIENCE", "2")
+    CURRENT_SALARY = os.getenv("CURRENT_SALARY", "6")
+    EXPECTED_SALARY = os.getenv("EXPECTED_SALARY", "8")
+    NOTICE_PERIOD = os.getenv("NOTICE_PERIOD", "30")
+    EDUCATION = os.getenv("EDUCATION", "Bachelor's in Computer Science")
+    SKILLS = os.getenv("SKILLS", "Nodejs, JavaScript, React")
 config = Config()
