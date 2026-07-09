@@ -23,7 +23,6 @@ class LinkedInApply:
     MODAL_SELECTORS = [
         "div.jobs-easy-apply-modal",
         "div[role='dialog']",
-        "div.artdeco-modal",
         "div[data-test='modal']"
     ]
     

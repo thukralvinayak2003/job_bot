@@ -1,0 +1,9 @@
+[2026-07-04 00:40:16] no_naukri_apply_button
+Role: Walk-in || MERN Developer
+Company: PwC India
+Naukri URL: https://www.naukri.com/job-listings-mern-developer-pwc-india-bengaluru-5-to-10-years-290626032414
+External apply links:
+- https://careers.infoedge.com/
+- https://www.iimjobs.com/
+- https://www.jobhai.com/
+

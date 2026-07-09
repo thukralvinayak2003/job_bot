@@ -78,7 +78,7 @@ def search_jobs(page: Page, role: str, location: str, max_results: int = 10) -> 
     else:
         base_url = "https://www.indeed.com"
     
-    url = f"{base_url}/jobs?q={q}&l={l}"
+    url = f"{base_url}/jobs?q={q}&l={l}&fromage=14"
     
     print(f"Navigating to: {url}")
     

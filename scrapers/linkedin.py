@@ -15,7 +15,9 @@ def search_jobs(page: Page, role: str, location: str, max_results: int = 10) -> 
     location = "India"
     loc = "India".replace(" ", "%20")
 
+    # url = f"https://www.linkedin.com/jobs/search?keywords={query}&location={loc}&f_AL=true"
     url = f"https://www.linkedin.com/jobs/search?keywords={query}&location={loc}"
+
 
     print(f"Navigating to: {url}")
 
