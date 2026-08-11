@@ -138,7 +138,10 @@ def check_and_wait_for_login(page, site_name, site_config, headless=False):
         navigator = IndeedNavigator(None)
         if navigator.is_captcha_present(page):
             print(f"\n🛑 CAPTCHA / reCAPTCHA detected during {site_name} navigation!")
-            handle_cloudflare_interactive(page, site_name)
+            solved = handle_cloudflare_interactive(page, site_name)
+            if not solved:
+                print(f"Skipping {site_name} due to unsolved security challenge.")
+                return False
 
         # Check if already logged in
         if login_check_fn and login_check_fn(page):
@@ -199,7 +202,6 @@ def setup_browser_context(playwright, user_data_dir, headless=False, use_simple_
         ignore_default_args=['--enable-automation'],
         args=[
             '--disable-blink-features=AutomationControlled',
-            '--no-sandbox',
             '--disable-dev-shm-usage',
             '--disable-infobars',
         ],
@@ -231,36 +233,63 @@ def handle_cloudflare_interactive(page, site_name):
     print('='*60)
     print("\nPlease manually complete the verification/reCAPTCHA in the browser window:")
     print("1. Look at the browser window")
-    print("2. Click the reCAPTCHA checkbox or solve the image puzzle")
-    print("3. Wait for the page to load normally")
-    print("4. The script will continue automatically")
+    print("2. Click the reCAPTCHA / Cloudflare checkbox or solve the image puzzle")
+    print("3. Wait for the page to update")
+    print("4. The script will automatically navigate past the block screen once solved")
     print("\nYou have 3 minutes to complete this.")
     print("="*60)
-    
-    from apply.navigation.indeed_navigation import IndeedNavigator
-    navigator = IndeedNavigator(None)
     
     start_time = time.time()
     timeout = 180  # 3 minutes
     
     while time.time() - start_time < timeout:
         try:
-            page_content = page.content().lower()
-            cloudflare_indicators = ['cloudflare', 'just a moment', 'checking your browser', 'verify you are human', 'additional verification required']
+            # Check if Turnstile checkbox / challenge iframe is still active
+            has_turnstile = False
+            for f in page.frames:
+                try:
+                    if f.query_selector("input[name='cf-turnstile-response']") or f.query_selector("#challenge-stage"):
+                        has_turnstile = True
+                        break
+                except Exception:
+                    continue
+
+            content_sample = page.content()[:10000].lower()
+            is_static_block = "indeed_cloudflare_static_page" in content_sample or "additional verification required" in content_sample
             
-            has_cf_text = any(indicator in page_content for indicator in cloudflare_indicators)
-            has_captcha_el = navigator.is_captcha_present(page)
-            
-            if not has_cf_text and not has_captcha_el:
+            # Check if Turnstile response token has been filled (user clicked checkbox and passed)
+            turnstile_solved = False
+            for f in page.frames:
+                try:
+                    val = f.evaluate("""() => {
+                        const el = document.querySelector("input[name='cf-turnstile-response']");
+                        return el ? el.value : '';
+                    }""")
+                    if val and len(val) > 10:
+                        turnstile_solved = True
+                        break
+                except Exception:
+                    continue
+
+            if turnstile_solved or (not is_static_block and not has_turnstile):
                 print("✓ Security challenge / reCAPTCHA completed successfully!")
+                print("🔄 Navigating to main site...")
                 time.sleep(2)
+                try:
+                    if "indeed" in site_name.lower():
+                        page.goto("https://in.indeed.com/", wait_until="domcontentloaded", timeout=30000)
+                    else:
+                        page.reload(wait_until="domcontentloaded", timeout=30000)
+                    time.sleep(3)
+                except Exception as ne:
+                    print(f"⚠ Navigation after captcha solve: {ne}")
                 return True
             
             time.sleep(3)
             elapsed = int(time.time() - start_time)
             
             if elapsed % 15 == 0:
-                print(f"⏳ Still waiting for CAPTCHA solution... ({elapsed}s elapsed)")
+                print(f"⏳ Waiting for CAPTCHA solution... ({elapsed}s elapsed)")
                 
         except Exception as e:
             print(f"Error checking CAPTCHA status: {e}")

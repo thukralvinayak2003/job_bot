@@ -70,7 +70,6 @@ class IndeedNavigator:
             try:
                 title = page.title().lower()
                 if any(t in title for t in ["just a moment", "security check", "robot", "captcha"]):
-                    print(f"⚠ CAPTCHA/Challenge detected via page title: '{page.title()}'")
                     return True
             except Exception:
                 pass
@@ -79,7 +78,6 @@ class IndeedNavigator:
             try:
                 content_sample = page.content()[:10000].lower()
                 if "indeed_cloudflare_static_page" in content_sample or "additional verification required" in content_sample:
-                    print("⚠ Cloudflare/reCAPTCHA static page detected")
                     return True
             except Exception:
                 pass
@@ -111,7 +109,6 @@ class IndeedNavigator:
                 try:
                     el = page.query_selector(selector)
                     if el and el.is_visible():
-                        print(f"⚠ CAPTCHA element detected on main page ({selector})")
                         return True
                 except Exception:
                     continue
@@ -125,7 +122,6 @@ class IndeedNavigator:
                             try:
                                 el = frame.query_selector(selector)
                                 if el:
-                                    print(f"⚠ CAPTCHA element detected in frame ({selector})")
                                     return True
                             except Exception:
                                 continue
@@ -134,7 +130,6 @@ class IndeedNavigator:
                             try:
                                 el = frame.query_selector(selector)
                                 if el:
-                                    print(f"⚠ CAPTCHA element detected in frame ({selector})")
                                     return True
                             except Exception:
                                 continue
