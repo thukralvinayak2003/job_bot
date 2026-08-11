@@ -117,21 +117,55 @@ class IndeedApply:
             print(f"❌ Failed to click apply button: {e}")
             return False
         
-    def _wait_for_captcha_solution_timeout(self, page: Page) -> bool:
+    def _wait_for_captcha_solution_timeout(self, page: Page, timeout: int = 300) -> bool:
         """
-        Wait for the user to manually solve CAPTCHA or finish the step.
-        Instead of a time limit, the user presses ENTER to continue.
+        Wait for the user to manually solve CAPTCHA/reCAPTCHA.
+        Polls every 3 seconds to check if CAPTCHA is cleared,
+        and also supports pressing ENTER in the terminal.
         """
         try:
-            print("⏳ Waiting for you to finish solving CAPTCHA or completing the step...")
-            print("➡ Press ENTER in this terminal when you are done.")
+            print("\n" + "="*60)
+            print("🛑 CAPTCHA / RECAPTCHA DETECTED - INDEED BOT PAUSED")
+            print("="*60)
+            print("Please solve the reCAPTCHA / verification challenge in the browser window.")
+            print("The bot will automatically resume once solved, or press ENTER in terminal.")
+            print(f"Timeout: {timeout // 60} minutes")
+            print("="*60 + "\n")
 
-            input()
+            start_time = time.time()
             
-            return True
+            # Windows non-blocking keypress check
+            try:
+                import msvcrt
+                has_msvcrt = True
+            except ImportError:
+                has_msvcrt = False
+
+            while time.time() - start_time < timeout:
+                time.sleep(3)
+
+                # Check if user pressed ENTER in terminal
+                if has_msvcrt and msvcrt.kbhit():
+                    key = msvcrt.getch()
+                    if key in [b'\r', b'\n']:
+                        print("\n⌨ Enter pressed. Resuming bot...")
+                        return True
+
+                # Check if CAPTCHA cleared automatically
+                if not self.navigator.is_captcha_present(page):
+                    print("\n✅ reCAPTCHA solved! Resuming Indeed bot...")
+                    time.sleep(2)
+                    return True
+
+                elapsed = int(time.time() - start_time)
+                if elapsed % 15 == 0:
+                    print(f"⏳ Waiting for reCAPTCHA completion... ({elapsed}s / {timeout}s)")
+
+            print("\n❌ CAPTCHA wait timed out.")
+            return False
 
         except Exception as e:
-            print(f"⚠ Error while waiting: {e}")
+            print(f"⚠ Error while waiting for CAPTCHA solution: {e}")
             return False
     
     def _handle_application_flow(self, page: Page) -> bool:
@@ -152,6 +186,15 @@ class IndeedApply:
             print(f"\n📄 Page {current_page_num}/{max_pages}")
             print(f"URL: {current_url}")
             
+            # Check for CAPTCHA / reCAPTCHA challenge at start of step
+            if self.navigator.is_captcha_present(page):
+                success = self._wait_for_captcha_solution_timeout(page)
+                if not success:
+                    print("❌ CAPTCHA was not solved in time, application failed.")
+                    return False
+                print("✅ CAPTCHA solved successfully. Continuing step...")
+                human_like_delay(2, 3)
+
             # Check if we're stuck on the same URL
             if current_url == last_url:
                 stuck_count += 1
@@ -194,12 +237,6 @@ class IndeedApply:
             if not button:
                 # Try submit button as fallback
                 if self.navigator.is_captcha_present(page):
-                    print("\n🛑 CAPTCHA DETECTED - Requiring manual solution")
-                    print("="*50)
-                    print("Please solve the CAPTCHA manually in the browser window.")
-                    print("The script will wait for you to complete it...")
-                    print("="*50)
-
                     success = self._wait_for_captcha_solution_timeout(page)
 
                     if not success:
@@ -207,7 +244,6 @@ class IndeedApply:
                         return False
                     else:
                         print("✅ CAPTCHA solved successfully. Resuming automation...")
-                        # Wait a moment after solving before proceeding
                         human_like_delay(2, 3)
                 page.wait_for_timeout(10000)
                 button = self.navigator.find_button(page, 'Review your application')

@@ -12,7 +12,7 @@ load_dotenv()  # load .env in project root
 class Config:
     EMAIL = os.getenv("EMAIL", "vinayakthukral2003@gmail.com")
     PHONE = os.getenv("PHONE", "6284263279")
-    RESUME_PATH = os.getenv("RESUME_PATH", r"C:\Users\thukr\OneDrive\Desktop\profile\Vinayak_Thukral_Resume_Updated.pdf")
+    RESUME_PATH = os.getenv("RESUME_PATH", r"c:\Users\thukr\OneDrive\Desktop\Vs code\PhaedraPlus\multi-job-autobot\multi-autoapply-lite\Vinayak_Thukral_ResumeV1.pdf")
     JOB_KEYWORDS = os.getenv("JOB_KEYWORDS", "")  # comma separated
     LOCATION = os.getenv("LOCATION", "Amritsar, Punjab, India")
     CURRENT_LOCATION = "Amritsar, Punjab, India"
@@ -39,20 +39,26 @@ class Config:
     STATE = "Punjab"
     COUNTRY = "India"
     NOTICE_PERIOD = os.getenv("NOTICE_PERIOD", "30")
-    EDUCATION = os.getenv("EDUCATION", "B.Tech CSE, Amritsar Group Of Colleges, 7.8 CGPA, 2025")
+    DOB = "21/08/2003"
+    GENDER = "Male"
+    EDUCATION = os.getenv("EDUCATION", "B.Tech, Computer Science Engineering, Amritsar Group of Colleges, CGPA: 7.8 (2025)")
     SKILLS = os.getenv(
         "SKILLS",
-        "TypeScript, JavaScript, Node.js, React, Next.js, Express.js, SQL, Tailwind CSS, React Native, "
-        "PostgreSQL, MongoDB, Firebase, Prisma ORM, GraphQL, REST APIs, JWT, Docker, AWS Lambda, AWS IoT Core, "
-        "AWS Amplify, EC2, S3, Turborepo, Redis, NGINX, DigitalOcean, Postman, GitHub, Redux, PWA, "
-        "RAG, AI Agent Development, LLM Integration, Prompt Engineering, Vector Databases, OpenAI APIs, "
-        "Anthropic APIs, LangChain, RabbitMQ, Microservices"
+        "Node.js, TypeScript, Express.js, REST APIs, GraphQL, RabbitMQ, JWT, RBAC, "
+        "React.js, Next.js, Redux, Tailwind CSS, React Native, PWA, "
+        "Docker, CI/CD, AWS (Lambda, Amplify, IoT Core, EC2, S3), NGINX, DigitalOcean, Turborepo, "
+        "PostgreSQL, MongoDB, Firebase, Prisma ORM, Redis, SQL, Microservices, System Design"
     )
+    
+    CURRENT_COMPANY = "Sisgain"
+    PREVIOUS_COMPANIES = "Virtueaze, IIT Ropar"
+    CERTIFICATIONS = "AWS Certified Cloud Practitioner (CLF-C02)"
+    PROJECTS = "FarmFlow (Smart Farming & IoT), WebbWe (Custom CMS), MaxHealth (Healthcare & FinTech Portal)"
     
     # LinkedIn and GitHub
     LINKEDIN = "https://www.linkedin.com/in/vinayak-thukral-902174177/"
     GITHUB = "https://github.com/thukralvinayak2003"
     PORTFOLIO = ""
-    TARGET_ROLE = "Senior MERN/AI Developer"
-    
+    TARGET_ROLE = "Senior Software Developer / Backend & Full Stack Engineering"
+
 config = Config()

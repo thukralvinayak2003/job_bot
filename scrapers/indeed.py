@@ -3,13 +3,15 @@ from typing import List, Dict
 import time
 import urllib.parse
 
-def wait_for_cloudflare_if_needed(page: Page, timeout: int = 60) -> bool:
+def wait_for_cloudflare_if_needed(page: Page, timeout: int = 180) -> bool:
     """
-    Check if Cloudflare verification is present and wait for user to solve it.
+    Check if Cloudflare or reCAPTCHA verification is present and wait for user to solve it.
     Returns True if verification was needed and completed, False otherwise.
     """
     try:
-        # Check if job results are already visible (we're past Cloudflare)
+        from apply.navigation.indeed_navigation import IndeedNavigator
+        navigator = IndeedNavigator(None)
+
         job_selectors = [
             "div.job_seen_beacon",
             "td.resultContent",
@@ -20,50 +22,56 @@ def wait_for_cloudflare_if_needed(page: Page, timeout: int = 60) -> bool:
         
         for selector in job_selectors:
             if page.query_selector(selector):
-                # Job content is visible, no Cloudflare blocking
                 return False
         
-        # Check for Cloudflare challenge indicators
         content = page.content().lower()
-        
-        # Specific Cloudflare BLOCKING indicators (not just the word "cloudflare")
         cloudflare_blocking = [
             "just a moment",
             "checking your browser",
             "verify you are human",
             "challenge-platform",
-            "cf-browser-verification"
+            "cf-browser-verification",
+            "additional verification required",
         ]
         
-        is_blocked = any(indicator in content for indicator in cloudflare_blocking)
+        is_blocked = any(indicator in content for indicator in cloudflare_blocking) or navigator.is_captcha_present(page)
         
         if is_blocked:
-            print("\n⚠️  Cloudflare verification detected!")
-            print("Please complete the verification in the browser window...")
-            print("Waiting for you to solve it (checking every 3 seconds)...")
+            print("\n" + "="*60)
+            print("⚠️  CLOUDFLARE / RECAPTCHA VERIFICATION DETECTED!")
+            print("="*60)
+            print("Please complete the verification / reCAPTCHA in the browser window...")
+            print(f"Waiting for you to solve it (auto-checking every 3 seconds for up to {timeout}s)...")
+            print("="*60 + "\n")
             
-            # Wait for Cloudflare to clear
             max_checks = timeout // 3
             for i in range(max_checks):
                 time.sleep(3)
                 
-                # Check if job content is now visible (verification passed)
+                # Check if job content is now visible
                 for selector in job_selectors:
                     if page.query_selector(selector):
-                        print("✓ Cloudflare verification passed! Job results visible.")
-                        time.sleep(2)  # Extra wait for page to stabilize
+                        print("✓ Verification passed! Job results visible.")
+                        time.sleep(2)
+                        return True
+
+                if not navigator.is_captcha_present(page):
+                    c = page.content().lower()
+                    if not any(indicator in c for indicator in cloudflare_blocking):
+                        print("✓ reCAPTCHA / Verification cleared! Resuming scraping...")
+                        time.sleep(2)
                         return True
                 
-                if i % 5 == 0 and i > 0:  # Every 15 seconds
-                    print(f"Still waiting... ({i*3}s elapsed)")
+                if i % 5 == 0 and i > 0:
+                    print(f"⏳ Still waiting for CAPTCHA resolution... ({i*3}s elapsed)")
             
-            print("✗ Cloudflare verification timeout. Continuing anyway...")
+            print("✗ Cloudflare / CAPTCHA verification timeout. Continuing anyway...")
             return False
         
         return False
         
     except Exception as e:
-        print(f"Error checking for Cloudflare: {e}")
+        print(f"Error checking for Cloudflare/CAPTCHA: {e}")
         return False
 
 

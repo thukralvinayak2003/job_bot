@@ -13,32 +13,9 @@ import os
 import time
 import random
 
-# Site configuration mapping
-SITE_CONFIGS = {
-    # "LinkedIn": {
-    #     "scraper": linkedin.search_jobs,
-    #     "applier_class": LinkedInApply,
-    #     "login_url": "https://www.linkedin.com/feed/",
-    #     "login_check": None,
-    # },
-    # "Indeed": {
-    #     "scraper": indeed.search_jobs,
-    #     "applier_class": IndeedApply,
-    #     "login_url": "https://www.indeed.com/",
-    #     "login_check": None,
-    # },
-    "Naukri": {
-        "scraper": naukri.search_jobs,
-        "applier_class": NaukriApply,
-        "login_url": "https://www.naukri.com/mnjuser/homepage",
-        "login_check": None,
-    }
-}
-
 def is_linkedin_logged_in(page):
     """Check if user is logged in to LinkedIn"""
     try:
-        # Check for common logged-in indicators
         logged_in_indicators = [
             "button:has-text('Start a post')",
             "div.feed-identity-module",
@@ -46,12 +23,9 @@ def is_linkedin_logged_in(page):
             "img.global-nav__me-photo",
             "nav.global-nav"
         ]
-        
         for selector in logged_in_indicators:
             if page.query_selector(selector) is not None:
                 return True
-        
-        # Additional check: Look for profile dropdown
         try:
             has_profile_menu = page.evaluate("""
                 () => {
@@ -63,34 +37,26 @@ def is_linkedin_logged_in(page):
             return has_profile_menu
         except:
             return False
-            
     except:
         return False
 
 def is_indeed_logged_in(page):
     """Check if user is logged in to Indeed"""
     try:
-        # Check for common logged-in indicators
         logged_in_indicators = [
             "a[href*='/account']",
             "button:has-text('Account')",
             "span.gnav-AccountMenu-userName",
             "div.gnav-account-menu"
         ]
-        
         for selector in logged_in_indicators:
             if page.query_selector(selector) is not None:
                 return True
-        
-        # Check URL for account pages
         current_url = page.url
         if '/account' in current_url or '/myjobs' in current_url:
             return True
-        
-        # Check for sign-out button (opposite check)
         if page.query_selector("a:has-text('Sign out')") or page.query_selector("button:has-text('Sign out')"):
             return True
-            
         return False
     except:
         return False
@@ -106,7 +72,6 @@ def is_naukri_logged_in(page):
             "a[href*='mnjuser/profile']",
             "a[href*='mnjuser/homepage']",
         ]
-
         for selector in logged_in_indicators:
             if page.query_selector(selector) is not None:
                 return True
@@ -119,6 +84,28 @@ def is_naukri_logged_in(page):
         return "logout" in page_text or "my naukri" in page_text
     except:
         return False
+
+# Site configuration mapping
+SITE_CONFIGS = {
+    # "LinkedIn": {
+    #     "scraper": linkedin.search_jobs,
+    #     "applier_class": LinkedInApply,
+    #     "login_url": "https://www.linkedin.com/feed/",
+    #     "login_check": is_linkedin_logged_in,
+    # },
+    "Indeed": {
+        "scraper": indeed.search_jobs,
+        "applier_class": IndeedApply,
+        "login_url": "https://in.indeed.com/",
+        "login_check": is_indeed_logged_in,
+    },
+    "Naukri": {
+        "scraper": naukri.search_jobs,
+        "applier_class": NaukriApply,
+        "login_url": "https://www.naukri.com/mnjuser/homepage",
+        "login_check": is_naukri_logged_in,
+    }
+}
 
 def check_and_wait_for_login(page, site_name, site_config, headless=False):
     """
@@ -134,17 +121,27 @@ def check_and_wait_for_login(page, site_name, site_config, headless=False):
     try:
         print(f"Navigating to {login_url}...")
         
-        # Use simpler navigation for login checks
         try:
             page.goto(login_url, timeout=45000)
-        except:
-            # If initial navigation fails, try with networkidle
-            page.goto(login_url, wait_until="networkidle", timeout=45000)
+        except Exception:
+            try:
+                page.goto(login_url, wait_until="networkidle", timeout=45000)
+            except Exception:
+                pass
         
-        time.sleep(3)
+        # Give page time to load scripts, settle DOM & resolve Cloudflare/cookies
+        print(f"Waiting for {site_name} page to finish loading...")
+        time.sleep(8)
         
+        # Check if CAPTCHA / Cloudflare / reCAPTCHA challenge present
+        from apply.navigation.indeed_navigation import IndeedNavigator
+        navigator = IndeedNavigator(None)
+        if navigator.is_captcha_present(page):
+            print(f"\n🛑 CAPTCHA / reCAPTCHA detected during {site_name} navigation!")
+            handle_cloudflare_interactive(page, site_name)
+
         # Check if already logged in
-        if login_check_fn(page):
+        if login_check_fn and login_check_fn(page):
             print(f"✓ Already logged in to {site_name}")
             return True
         
@@ -160,29 +157,26 @@ def check_and_wait_for_login(page, site_name, site_config, headless=False):
         print('='*60)
         print(f"Please log in to {site_name} manually in the browser window.")
         print(f"The browser will wait for you to complete the login.")
-        print(f"After logging in, the page will automatically refresh.")
         print(f"Timeout: 3 minutes")
         print('='*60)
         
         # Wait up to 3 minutes for manual login
         max_wait_seconds = 180
-        check_interval = 3
+        check_interval = 4
         attempts = max_wait_seconds // check_interval
         
         for attempt in range(attempts):
             time.sleep(check_interval)
             
-            # Try to check login status without refreshing (to avoid triggering Cloudflare)
             try:
-                if login_check_fn(page):
+                if login_check_fn and login_check_fn(page):
                     print(f"\n✓ Successfully logged in to {site_name}!")
                     print(f"Login confirmed, continuing with automation...")
                     return True
-            except:
+            except Exception:
                 pass
             
-            # Every 30 seconds, give status update
-            if attempt % 10 == 0 and attempt > 0:
+            if attempt % 8 == 0 and attempt > 0:
                 print(f"Still waiting for login... ({attempt * check_interval}s / {max_wait_seconds}s)")
         
         print(f"\n✗ Login timeout for {site_name} after {max_wait_seconds} seconds.")
@@ -195,146 +189,84 @@ def check_and_wait_for_login(page, site_name, site_config, headless=False):
 
 def setup_browser_context(playwright, user_data_dir, headless=False, use_simple_stealth=True):
     """
-    Setup browser with appropriate stealth measures.
-    use_simple_stealth=True uses simpler stealth that works better with Cloudflare.
+    Setup browser with full stealth measures using playwright-stealth.
     """
-    print("Launching browser...")
+    print("Launching browser with stealth features...")
     
-    # Simpler stealth that works better with Cloudflare
-    if use_simple_stealth:
-        browser = playwright.chromium.launch_persistent_context(
-            user_data_dir=user_data_dir,
-            headless=headless,
-            # Minimal arguments to appear more human
-            args=[
-                '--disable-blink-features=AutomationControlled',
-                '--no-sandbox',
-                '--disable-dev-shm-usage',
-            ],
-            viewport={'width': 1366, 'height': 768},
-            # Add human-like user agent
-            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-            # Remove most anti-detection flags for Cloudflare compatibility
-        )
-        
-        # Add only essential stealth script
-        page = browser.new_page()
+    browser = playwright.chromium.launch_persistent_context(
+        user_data_dir=user_data_dir,
+        headless=headless,
+        ignore_default_args=['--enable-automation'],
+        args=[
+            '--disable-blink-features=AutomationControlled',
+            '--no-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-infobars',
+        ],
+        viewport={'width': 1366, 'height': 768},
+    )
+    
+    # Use initial page created by persistent context if available, or create new
+    page = browser.pages[0] if browser.pages else browser.new_page()
+    
+    try:
+        from playwright_stealth import Stealth
+        Stealth().apply_stealth_sync(page)
+        print("✓ Applied full Playwright stealth evasions")
+    except Exception as e:
+        print(f"⚠ Could not apply playwright-stealth: {e}")
         page.add_init_script("""
-            // Minimal stealth - just remove webdriver flag
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => false,
-            });
-        """)
-        
-    else:
-        # Use the original complex stealth
-        browser = playwright.chromium.launch_persistent_context(
-            user_data_dir=user_data_dir,
-            headless=headless,
-            args=[
-                '--disable-blink-features=AutomationControlled',
-                '--disable-dev-shm-usage',
-                '--no-sandbox',
-                '--disable-web-security',
-                '--disable-features=IsolateOrigins,site-per-process',
-                '--disable-site-isolation-trials',
-                '--disable-features=BlockInsecurePrivateNetworkRequests',
-            ],
-            ignore_default_args=[
-                '--enable-automation',
-                '--disable-background-networking',
-                '--disable-default-apps',
-                '--disable-extensions',
-                '--disable-sync',
-                '--disable-translate',
-                '--hide-scrollbars',
-                '--metrics-recording-only',
-                '--mute-audio',
-                '--no-first-run',
-                '--safebrowsing-disable-auto-update',
-                '--disable-component-update',
-                '--disable-client-side-phishing-detection',
-            ],
-            viewport={'width': 1366, 'height': 768},
-            user_agent=config.USER_AGENT if hasattr(config, 'USER_AGENT') else None,
-        )
-        
-        page = browser.new_page()
-        page.add_init_script("""
-            // Override navigator properties
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => false,
-            });
-            
-            // Override permissions
-            const originalQuery = window.navigator.permissions.query;
-            window.navigator.permissions.query = (parameters) => (
-                parameters.name === 'notifications' ?
-                    Promise.resolve({ state: Notification.permission }) :
-                    originalQuery(parameters)
-            );
-            
-            // Override plugins
-            Object.defineProperty(navigator, 'plugins', {
-                get: () => [1, 2, 3, 4, 5],
-            });
-            
-            // Override languages
-            Object.defineProperty(navigator, 'languages', {
-                get: () => ['en-US', 'en'],
-            });
-            
-            // Chrome only
-            window.chrome = {
-                runtime: {},
-            };
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
         """)
     
     return browser, page
 
 def handle_cloudflare_interactive(page, site_name):
     """
-    Handle Cloudflare verification interactively.
+    Handle Cloudflare/reCAPTCHA verification interactively.
     Returns True if verification passed, False if failed.
     """
     print(f"\n{'='*60}")
-    print(f"⚠️  CLOUDFLARE VERIFICATION DETECTED ON {site_name.upper()}")
+    print(f"⚠️  SECURITY CHALLENGE / CAPTCHA DETECTED ON {site_name.upper()}")
     print('='*60)
-    print("\nCloudflare is blocking access. Please manually complete the verification:")
+    print("\nPlease manually complete the verification/reCAPTCHA in the browser window:")
     print("1. Look at the browser window")
-    print("2. Complete any CAPTCHA or verification challenges")
+    print("2. Click the reCAPTCHA checkbox or solve the image puzzle")
     print("3. Wait for the page to load normally")
     print("4. The script will continue automatically")
-    print("\nYou have 2 minutes to complete this.")
+    print("\nYou have 3 minutes to complete this.")
     print("="*60)
     
+    from apply.navigation.indeed_navigation import IndeedNavigator
+    navigator = IndeedNavigator(None)
+    
     start_time = time.time()
-    timeout = 120  # 2 minutes
+    timeout = 180  # 3 minutes
     
     while time.time() - start_time < timeout:
-        # Check if Cloudflare is still present
         try:
             page_content = page.content().lower()
-            cloudflare_indicators = ['cloudflare', 'just a moment', 'checking your browser', 'verify you are human']
+            cloudflare_indicators = ['cloudflare', 'just a moment', 'checking your browser', 'verify you are human', 'additional verification required']
             
-            # Check if Cloudflare is gone
-            if not any(indicator in page_content for indicator in cloudflare_indicators):
-                print("✓ Cloudflare verification appears to be completed!")
+            has_cf_text = any(indicator in page_content for indicator in cloudflare_indicators)
+            has_captcha_el = navigator.is_captcha_present(page)
+            
+            if not has_cf_text and not has_captcha_el:
+                print("✓ Security challenge / reCAPTCHA completed successfully!")
                 time.sleep(2)
                 return True
             
-            # Wait and check again
-            time.sleep(5)
+            time.sleep(3)
             elapsed = int(time.time() - start_time)
             
             if elapsed % 15 == 0:
-                print(f"⏳ Still waiting... ({elapsed}s elapsed)")
+                print(f"⏳ Still waiting for CAPTCHA solution... ({elapsed}s elapsed)")
                 
         except Exception as e:
-            print(f"Error checking Cloudflare status: {e}")
-            time.sleep(5)
+            print(f"Error checking CAPTCHA status: {e}")
+            time.sleep(3)
     
-    print("✗ Cloudflare verification timed out after 2 minutes.")
+    print("✗ Security challenge verification timed out after 3 minutes.")
     return False
 
 def run_job_search_and_apply(max_per_site=5, headless=None, use_simple_stealth=True):

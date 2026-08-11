@@ -48,14 +48,15 @@ def setup_logins():
             ignore_default_args=['--enable-automation'],
         )
         
-        page = browser.new_page()
+        page = browser.pages[0] if browser.pages else browser.new_page()
         
-        # Hide webdriver property
-        page.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', {
-                get: () => undefined
-            });
-        """)
+        try:
+            from playwright_stealth import Stealth
+            Stealth().apply_stealth_sync(page)
+        except Exception:
+            page.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            """)
         
         for site_name, login_url in sites:
             print(f"\n{'='*60}")

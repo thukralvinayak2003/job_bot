@@ -61,36 +61,85 @@ class IndeedNavigator:
 
     def is_captcha_present(self, page: Page) -> bool:
         """
-        Detect Google ReCAPTCHA v2, image puzzles, invisible reCAPTCHA.
-        Uses iframe inspection.
+        Detect Google reCAPTCHA (v2, v3, invisible, image puzzle),
+        Cloudflare Turnstile, and Cloudflare challenge pages.
+        Inspects main page and all frames.
         """
-
         try:
-            # Find all frames with recaptcha in URL
-            recaptcha_frames = [
-                f for f in page.frames
-                if "recaptcha" in f.url or "google.com/recaptcha" in f.url
+            # 1. Check title & URL for captcha indicators
+            try:
+                title = page.title().lower()
+                if any(t in title for t in ["just a moment", "security check", "robot", "captcha"]):
+                    print(f"⚠ CAPTCHA/Challenge detected via page title: '{page.title()}'")
+                    return True
+            except Exception:
+                pass
+
+            # 2. Check main page HTML content for static captcha / cloudflare page
+            try:
+                content_sample = page.content()[:10000].lower()
+                if "indeed_cloudflare_static_page" in content_sample or "additional verification required" in content_sample:
+                    print("⚠ Cloudflare/reCAPTCHA static page detected")
+                    return True
+            except Exception:
+                pass
+
+            # 3. Target selectors for reCAPTCHA (v2/v3/checkbox/puzzle) and Turnstile
+            selectors = [
+                "#recaptcha-anchor",
+                ".recaptcha-checkbox",
+                ".rc-anchor-checkbox-holder",
+                ".rc-anchor-center-item",
+                ".recaptcha-checkbox-border",
+                ".recaptcha-checkbox-checkmark",
+                ".rc-imageselect",
+                "#rc-imageselect",
+                ".rc-audiochallenge-tdownload",
+                "iframe[src*='recaptcha']",
+                "iframe[src*='google.com/recaptcha']",
+                "iframe[title*='recaptcha' i]",
+                "iframe[title*='reCAPTCHA' i]",
+                "input[name='cf-turnstile-response']",
+                "iframe[src*='challenges.cloudflare.com']",
+                ".cf-turnstile-wrapper",
+                "#challenge-stage",
+                "#challenge-running",
             ]
 
-            if recaptcha_frames:
-                print("⚠ reCAPTCHA iframe detected")
+            # Check main page
+            for selector in selectors:
+                try:
+                    el = page.query_selector(selector)
+                    if el and el.is_visible():
+                        print(f"⚠ CAPTCHA element detected on main page ({selector})")
+                        return True
+                except Exception:
+                    continue
 
-            for frame in recaptcha_frames:
-
-                # v2 checkbox ("I'm not a robot")
-                if frame.query_selector("#recaptcha-anchor") or frame.query_selector(".recaptcha-checkbox-border"):
-                    print("⚠ ReCAPTCHA checkbox detected")
-                    return True
-
-                # Image tile challenge
-                if frame.query_selector(".rc-imageselect") or frame.query_selector("#rc-imageselect"):
-                    print("⚠ Image-select CAPTCHA challenge detected")
-                    return True
-
-                # Audio challenge
-                if frame.query_selector(".rc-audiochallenge-tdownload"):
-                    print("⚠ Audio CAPTCHA detected")
-                    return True
+            # Check all frames (including recaptcha / cloudflare iframes)
+            for frame in page.frames:
+                try:
+                    frame_url = frame.url.lower()
+                    if "recaptcha" in frame_url or "cloudflare" in frame_url or "google.com" in frame_url:
+                        for selector in selectors:
+                            try:
+                                el = frame.query_selector(selector)
+                                if el:
+                                    print(f"⚠ CAPTCHA element detected in frame ({selector})")
+                                    return True
+                            except Exception:
+                                continue
+                    else:
+                        for selector in ["#recaptcha-anchor", ".recaptcha-checkbox", ".rc-anchor-checkbox-holder", ".recaptcha-checkbox-border", ".rc-imageselect"]:
+                            try:
+                                el = frame.query_selector(selector)
+                                if el:
+                                    print(f"⚠ CAPTCHA element detected in frame ({selector})")
+                                    return True
+                            except Exception:
+                                continue
+                except Exception:
+                    continue
 
             return False
 

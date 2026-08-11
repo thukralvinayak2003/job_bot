@@ -186,36 +186,59 @@ class IndeedAutofill:
 
             # Fill the field based on its tag/type
             if tag_name == 'select':
-                # Attempt to select the option returned by AI
-                # The AI might return the text or the value; _select_dropdown_option handles both
-                # Alternatively, use Playwright's built-in select_option which is more robust
                 try:
-                    field.select_option(ai_answer)
-                    print(f"   Selected option: {ai_answer}")
+                    field.select_option(label=ai_answer)
+                    print(f"   Selected option by label: {ai_answer}")
                     return True
-                except:
-                    print(f"   ⚠  Could not select option '{ai_answer}'. Options were: {options}")
-                    # Fallback: try to select based on partial match using the original helper if needed
-                    # selected = self._select_dropdown_option(field, [ai_answer])
-                    # return selected
-                    return False
+                except Exception:
+                    try:
+                        field.select_option(value=ai_answer)
+                        print(f"   Selected option by value: {ai_answer}")
+                        return True
+                    except Exception:
+                        print(f"   ⚠ Could not select option directly for '{ai_answer}'. Trying helper fallback...")
+                        selected = self._select_dropdown_option(
+                            field,
+                            [ai_answer, str(self.config.NOTICE_PERIOD), getattr(self.config, 'CITY', 'Amritsar'), "30", "1 Month", "15 Days", "Yes", "No"]
+                        )
+                        return selected
 
             elif input_type in ['checkbox', 'radio']:
                  if input_type == 'checkbox':
-                      # Assuming AI returns "Yes"/"True" for checking, "No"/"False" for unchecking
-                      should_check = ai_answer.lower() in ['yes', 'true', 'on', '1']
+                      ans_lower = (ai_answer or '').lower()
+                      context_lower = (context or '').lower()
+                      should_check = any(w in ans_lower for w in ['yes', 'true', 'on', '1', 'agree', 'accept'])
+                      if any(kw in context_lower for kw in ['privacy', 'terms', 'declare', 'understand', 'consent', 'agree', 'policy', 'notice']):
+                          should_check = True
+
                       is_checked = field.is_checked()
                       if should_check and not is_checked:
-                          field.check()
-                          print(f"   Checked checkbox.")
+                          field_id = field.get_attribute('id')
+                          clicked = False
+                          if field_id:
+                              lbl = page.query_selector(f"label[for='{field_id}']")
+                              if lbl:
+                                  try:
+                                      lbl.click()
+                                      clicked = True
+                                      print(f"   Clicked checkbox label: {field_id}")
+                                  except Exception:
+                                      pass
+                          if not clicked:
+                              try:
+                                  field.click(force=True)
+                              except Exception:
+                                  field.check(force=True)
+                              print(f"   Checked checkbox via click.")
+                          time.sleep(0.3)
                           return True
                       elif not should_check and is_checked:
-                          field.uncheck()
+                          field.uncheck(force=True)
                           print(f"   Unchecked checkbox.")
                           return True
                       else:
                           print(f"   Checkbox already in desired state.")
-                          return True # Already in desired state
+                          return True
                  elif input_type == 'radio':
                      # Find the radio button matching the AI answer and select it
                      field_name = field.get_attribute('name')
@@ -250,13 +273,21 @@ class IndeedAutofill:
             elif tag_name == 'select':
                 current_value = field.evaluate("el => el.value")
                 return bool(current_value)
-            elif input_type in ['checkbox', 'radio']:
+            elif input_type == 'checkbox':
+                return field.is_checked()
+            elif input_type == 'radio':
+                field_name = field.get_attribute('name')
+                if field_name:
+                    radios = field.page.query_selector_all(f'input[type="radio"][name="{field_name}"]')
+                    for r in radios:
+                        if r.is_checked():
+                            return True
+                    return False
                 return field.is_checked()
             return False
-        except:
+        except Exception:
             return False
 
-    # Keep _select_dropdown_option for potential fallback use if direct select_option fails
     def _select_dropdown_option(self, field, preferred_values: List[str]) -> bool:
         """Select option from dropdown that matches preferred values"""
         try:
@@ -292,7 +323,6 @@ class IndeedAutofill:
             print(f"⚠ Error selecting dropdown: {e}")
             return False
 
-    # Keep _select_radio_in_group as it handles matching AI output to radio button labels/values
     def _select_radio_in_group(self, page: Page, field, preferred_values: List[str]) -> bool:
         """Select radio button in group matching preferred values"""
         try:
@@ -302,46 +332,63 @@ class IndeedAutofill:
 
             radio_buttons = page.query_selector_all(f'input[type="radio"][name="{field_name}"]')
 
-            # First pass: exact matches
+            # First pass: exact label / value matches
             for radio in radio_buttons:
                 value = (radio.get_attribute('value') or '').lower()
                 radio_id = radio.get_attribute('id') or ''
 
-                # Get label text
+                label_element = None
                 label_text = ''
                 if radio_id:
-                    label = page.query_selector(f"label[for='{radio_id}']")
-                    if label:
-                        label_text = label.inner_text().lower()
+                    label_element = page.query_selector(f"label[for='{radio_id}']")
+                    if label_element:
+                        label_text = label_element.inner_text().strip().lower()
 
                 for pref in preferred_values:
-                    pref_lower = str(pref).lower()
+                    pref_lower = str(pref).lower().strip()
                     if pref_lower == value or pref_lower == label_text:
-                        if not radio.is_checked():
-                            radio.check()
-                            print(f"   Checked radio button: {label_text or value}")
-                            return True
+                        if label_element:
+                            label_element.click()
+                        else:
+                            radio.click()
+                        print(f"   Clicked radio option: {label_text or value}")
+                        time.sleep(0.3)
+                        return True
 
             # Second pass: partial matches
             for radio in radio_buttons:
                 value = (radio.get_attribute('value') or '').lower()
                 radio_id = radio.get_attribute('id') or ''
 
+                label_element = None
                 label_text = ''
                 if radio_id:
-                    label = page.query_selector(f"label[for='{radio_id}']")
-                    if label:
-                        label_text = label.inner_text().lower()
+                    label_element = page.query_selector(f"label[for='{radio_id}']")
+                    if label_element:
+                        label_text = label_element.inner_text().strip().lower()
 
                 for pref in preferred_values:
-                    pref_lower = str(pref).lower()
-                    if pref_lower in value or pref_lower in label_text:
-                        if not radio.is_checked():
-                            radio.check()
-                            print(f"   Checked radio button (partial match): {label_text or value}")
-                            return True
+                    pref_lower = str(pref).lower().strip()
+                    if pref_lower in value or pref_lower in label_text or label_text in pref_lower:
+                        if label_element:
+                            label_element.click()
+                        else:
+                            radio.click()
+                        print(f"   Clicked radio option (partial match): {label_text or value}")
+                        time.sleep(0.3)
+                        return True
 
-            print(f"   Radio helper could not find match for: {preferred_values}")
+            # Fallback pass: if preferred value is 'Yes' or 'No', pick the first radio option if no match
+            if radio_buttons:
+                lbl = page.query_selector(f"label[for='{radio_buttons[0].get_attribute('id')}']")
+                if lbl:
+                    lbl.click()
+                else:
+                    radio_buttons[0].click()
+                print(f"   Fallback radio option clicked for group '{field_name}'")
+                time.sleep(0.3)
+                return True
+
             return False
         except Exception as e:
             print(f"⚠ Error selecting radio: {e}")

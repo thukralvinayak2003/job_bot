@@ -9,7 +9,7 @@ COMMON_ANSWERS = {
     "total_experience_years": "3",
     "relevant_experience_years": "3",
 
-    # Experience in specific skills (ALL set to 2 years)
+    # Experience in specific skills (ALL set to 3 years)
     "experience_python": "3",
     "experience_javascript": "3",
     "experience_nodejs": "3",
@@ -37,9 +37,19 @@ COMMON_ANSWERS = {
     "experience_system_design": "3",
     "experience_microservices": "3",
 
-    # Notice Period
+    # Notice Period & Availability
     "notice_period": "30",
     "availability": "30",
+
+    # Education / Academic Scores & CGPA
+    "10th_percentage": "85%",
+    "12th_percentage": "82%",
+    "10th_cgpa": "8.5",
+    "12th_cgpa": "8.2",
+    "graduation_cgpa": "7.8",
+    "graduation_percentage": "78%",
+    "cgpa": "7.8",
+    "percentage": "80%",
 
     # Work authorization
     "work_authorization": "Yes",
@@ -51,6 +61,10 @@ COMMON_ANSWERS = {
     "remote_preference": "Yes",
 
     # Personal details
+    "gender": "Male",
+    "sex": "Male",
+    "dob": "21/08/2003",
+    "date_of_birth": "21/08/2003",
     "current_company": "Sisgain",
     "previous_company": "Virtueaze",
     "target_role": "Senior MERN/AI Developer",
@@ -70,7 +84,6 @@ COMMON_ANSWERS = {
 
     # Additional Yes/No defaults
     "yes_default": "Yes",
-
     "Relocation": "Yes",
 
     # Additional common HR questions
@@ -83,7 +96,5 @@ COMMON_ANSWERS = {
     "Address": "16-B Rani Ka Bagh Amritsar Punjab India 143001",
     "City": "Amritsar",
     "State": "Punjab",
-
-    "linkedin":"https://www.linkedin.com/in/vinayak-thukral-902174177/"
-
+    "linkedin": "https://www.linkedin.com/in/vinayak-thukral-902174177/",
 }
